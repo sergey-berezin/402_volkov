@@ -16,12 +16,6 @@ using static System.Net.Mime.MediaTypeNames;
 
 namespace NuGetYOLO
 {
-    using System;
-    using System.IO;
-    using System.Net;
-    using Microsoft.ML.OnnxRuntime;
-    using Microsoft.ML.OnnxRuntime.Tensors;
-
     public class FileDownloader
     {
         public void DownloadFile(string url, string filename)
@@ -70,7 +64,7 @@ namespace NuGetYOLO
 
             session = new InferenceSession(neuralNetName);
         }
-        public async Task<(string fileName, string csvRecord, Image<Rgb24> detectedImage)> Analyze(string path, CancellationToken ctoken)
+        public async Task<(string fileName, string csvRecord, Image<Rgb24> detectedImage, List<(string, double)> detections)> AnalyzeAsync(string path, CancellationToken ctoken)
         {
             return await Task.Factory.StartNew(_ => {
                 using var image = SixLabors.ImageSharp.Image.Load<Rgb24>(path);
@@ -265,24 +259,28 @@ namespace NuGetYOLO
                         }
                     }
                 }
-
-                StringBuilder csvBuilder = new StringBuilder();
-                foreach (var obj in objects)
-                {
-                    string csvLine = string.Format(new NumberFormatInfo() { NumberDecimalSeparator = "." }, "{0},{1},{2},{3},{4},{5}\n", path, labels[obj.Class], obj.XMin, obj.YMin, obj.XMax - obj.XMin, obj.YMax - obj.YMin);
-                    csvBuilder.Append(csvLine);
-                }
-                string curCsv = csvBuilder.ToString();
-
+                List<(string, double)> detections = objects.Select(x => (labels[x.Class], x.Confidence)).OrderBy(y => y.Item1).ThenBy(z => z.Confidence).ToList();
+                var csvRecord = GenerateCsvRecord(path, objects, labels);
                 var final = resized.Clone();
                 Annotate(final, objects);
 
                 string fileExtension = Path.GetExtension(path);
                 string outputPath = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path) + "Detected.jpg");
 
-                return (outputPath, curCsv, final);
+                return (outputPath, csvRecord, final, detections);
             }, ctoken, TaskCreationOptions.LongRunning);
 
+
+        }
+        public string GenerateCsvRecord(string path, List<ObjectBox> objects, string[] labels)
+        {
+            StringBuilder csvBuilder = new StringBuilder();
+            foreach (var obj in objects)
+            {
+                string csvLine = string.Format(new NumberFormatInfo() { NumberDecimalSeparator = "." }, "{0},{1},{2},{3},{4},{5}\n", path, labels[obj.Class], obj.XMin, obj.YMin, obj.XMax - obj.XMin, obj.YMax - obj.YMin);
+                csvBuilder.Append(csvLine);
+            }
+            return csvBuilder.ToString();
         }
     }
     public record ObjectBox(double XMin, double YMin, double XMax, double YMax, double Confidence, int Class)

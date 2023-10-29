@@ -43,13 +43,13 @@ namespace Task1
             }
         }
 
-        private static async Task<(string fileName, string curCsv, Image<Rgb24> curImg)> AnalyzeImage(NuGetYOLO.Detection detector, string imagePath, CancellationToken cancellationToken, int index)
+        private static async Task<(string fileName, string curCsv, Image<Rgb24> curImg, object)> AnalyzeImage(NuGetYOLO.Detection detector, string imagePath, CancellationToken cancellationToken, int index)
         {
             Console.WriteLine($"Analyzing image {index}...");
 
             try
             {
-                var result = await detector.Analyze(imagePath, cancellationToken);
+                var result = await detector.AnalyzeAsync(imagePath, cancellationToken);
 
                 Console.WriteLine($"Image {index} analyzed.");
                 return result;
@@ -57,11 +57,11 @@ namespace Task1
             catch (Exception ex)
             {
                 Console.WriteLine($"Error analyzing image {index}: {ex.Message}");
-                return (null, null, null);
+                return (null, null, null, null);
             }
         }
 
-        private static void SaveResults((string fileName, string curCsv, Image<Rgb24> curImg) result)
+        private static void SaveResults((string fileName, string curCsv, Image<Rgb24> curImg, object) result)
         {
             if (result.fileName != null)
             {
